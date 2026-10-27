@@ -43,45 +43,51 @@ export const colors = {
 export interface Category {
   id: string;
   label: string;
-  icon: 'bag-handle-outline' | 'restaurant-outline' | 'airplane-outline' | 'film-outline' | 'book-outline' | 'bulb-outline';
+  icon: any;
   description: string;
 }
 
 export const categories: Category[] = [
   {
-    id: 'buy',
-    label: 'Things to Buy',
-    icon: 'bag-handle-outline',
-    description: 'Products, prices & wishlist',
-  },
-  {
-    id: 'places',
-    label: 'Places to Try',
+    id: 'food',
+    label: 'Food & Dining',
     icon: 'restaurant-outline',
-    description: 'Cafés, spots & restaurants',
+    description: 'Dishes, cafés, snacks, drinks & pizza',
   },
   {
-    id: 'travel',
-    label: 'Travel',
-    icon: 'airplane-outline',
-    description: 'Flights, spots & bookings',
-  },
-  {
-    id: 'watch',
-    label: 'Watch Later',
-    icon: 'film-outline',
-    description: 'Movies, reels & shows',
+    id: 'people',
+    label: 'People & Fits',
+    icon: 'person-outline',
+    description: 'Selfies, portraits, outfits & styling',
   },
   {
     id: 'study',
     label: 'Study & Work',
     icon: 'book-outline',
-    description: 'Tutorials, guides & notes',
+    description: 'Handwritten sheets, lectures & notes',
+  },
+  {
+    id: 'buy',
+    label: 'Things to Buy',
+    icon: 'bag-handle-outline',
+    description: 'Products, prices, gadgets & wishlists',
+  },
+  {
+    id: 'places',
+    label: 'Places & Travel',
+    icon: 'airplane-outline',
+    description: 'Destinations, spots, maps & hotels',
+  },
+  {
+    id: 'watch',
+    label: 'Watch Later',
+    icon: 'film-outline',
+    description: 'Movies, reels, podcasts & videos',
   },
   {
     id: 'ideas',
     label: 'Ideas & Notes',
     icon: 'bulb-outline',
-    description: 'Inspirations, drafts & quotes',
+    description: 'Memes, inspirations, thoughts & quotes',
   },
 ];

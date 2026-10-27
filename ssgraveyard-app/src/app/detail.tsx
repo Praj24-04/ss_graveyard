@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Image,
   ScrollView,
-  Pressable,
   Alert,
   TouchableOpacity,
   ActivityIndicator,
@@ -14,6 +13,9 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, categories } from '../theme';
 import { getAllEntries, deleteEntry, updateEntry, Entry } from '../storage';
+import { analyzeScreenshot } from '../ai';
+import { ApiKeyModal } from '../components/ApiKeyModal';
+import { getActiveApiKey } from '../constants';
 
 export default function Detail() {
   const router = useRouter();
@@ -23,6 +25,42 @@ export default function Detail() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
+  const [apiKeyModalVisible, setApiKeyModalVisible] = useState(false);
+
+  const handleReAnalyze = async () => {
+    if (!entry) return;
+    const key = await getActiveApiKey();
+    if (!key || key.trim().length < 15) {
+      setApiKeyModalVisible(true);
+      return;
+    }
+
+    setReanalyzing(true);
+    try {
+      const res = await analyzeScreenshot(entry.imageUri);
+      await updateEntry(entry.id, {
+        category: res.category,
+        categoryLabel: res.categoryLabel,
+        intent: res.intent,
+        summary: res.summary,
+        tags: res.tags,
+      });
+      setEntry({
+        ...entry,
+        category: res.category,
+        categoryLabel: res.categoryLabel,
+        intent: res.intent,
+        summary: res.summary,
+        tags: res.tags,
+      });
+      setSelectedCategory(res.category);
+    } catch (err: any) {
+      Alert.alert('Analysis Failed', err?.message || 'Could not re-analyze image with Gemini.');
+    } finally {
+      setReanalyzing(false);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -34,6 +72,14 @@ export default function Detail() {
     })();
   }, [id]);
 
+  const handleGoBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/');
+    }
+  };
+
   const handleDelete = () => {
     Alert.alert('Delete Screenshot', 'Are you sure you want to remove this screenshot from your vault?', [
       { text: 'Cancel', style: 'cancel' },
@@ -42,7 +88,7 @@ export default function Detail() {
         style: 'destructive',
         onPress: async () => {
           if (id) await deleteEntry(id);
-          router.back();
+          handleGoBack();
         },
       },
     ]);
@@ -76,7 +122,7 @@ export default function Detail() {
       <View style={styles.center}>
         <Ionicons name="alert-circle-outline" size={48} color={colors.textMuted} />
         <Text style={styles.notFound}>Entry not found</Text>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={handleGoBack}>
           <Text style={styles.backBtnText}>Go Back</Text>
         </TouchableOpacity>
       </View>
@@ -87,7 +133,7 @@ export default function Detail() {
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
       {/* Top Bar Navigation */}
       <View style={styles.topNav}>
-        <TouchableOpacity style={styles.navBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.navBtn} onPress={handleGoBack}>
           <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.topNavTitle}>Screenshot Details</Text>
@@ -120,6 +166,23 @@ export default function Detail() {
             <Text style={styles.editToggleText}>{editing ? 'Cancel' : 'Change'}</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Re-Analyze with Gemini Vision Button */}
+        <TouchableOpacity
+          style={styles.reanalyzeBtn}
+          onPress={handleReAnalyze}
+          disabled={reanalyzing}
+          activeOpacity={0.8}
+        >
+          {reanalyzing ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="sparkles" size={16} color="#FFFFFF" />
+              <Text style={styles.reanalyzeBtnText}>Re-analyze with Gemini Vision</Text>
+            </>
+          )}
+        </TouchableOpacity>
 
         {/* Category Edit Grid */}
         {editing && (
@@ -202,11 +265,38 @@ export default function Detail() {
           </Text>
         </View>
       </View>
+
+      <ApiKeyModal
+        visible={apiKeyModalVisible}
+        onClose={() => setApiKeyModalVisible(false)}
+        onKeySaved={handleReAnalyze}
+      />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  reanalyzeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#16A34A',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 10,
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  reanalyzeBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
   scroll: {
     flex: 1,
     backgroundColor: colors.background,

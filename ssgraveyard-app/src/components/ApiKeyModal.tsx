@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Linking,
-  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme';
@@ -49,7 +48,7 @@ export function ApiKeyModal({ visible, onClose, onKeySaved }: ApiKeyModalProps) 
 
     if (result.success) {
       await saveCustomApiKey(key);
-      setStatusMessage({ text: 'Success! Gemini Vision is connected.', success: true });
+      setStatusMessage({ text: result.message || 'Success! Gemini Vision is connected.', success: true });
       if (onKeySaved) onKeySaved();
       setTimeout(() => {
         onClose();

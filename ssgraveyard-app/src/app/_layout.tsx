@@ -1,29 +1,12 @@
-import { useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { Tabs, useRouter, useSegments } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme';
 import { AuthProvider, useAuth } from '../context/AuthContext';
+import LoginScreen from './login';
 
 function NavigationLayout() {
   const { user, isLoading } = useAuth();
-  const segments = useSegments();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (isLoading) return;
-
-    const currentSegment = (segments as string[])[0];
-    const onLoginScreen = currentSegment === 'login';
-
-    if (!user && !onLoginScreen) {
-      // Require mandatory login
-      router.replace('/login' as any);
-    } else if (user && onLoginScreen) {
-      // Return to home if already authenticated
-      router.replace('/' as any);
-    }
-  }, [user, isLoading, segments]);
 
   if (isLoading) {
     return (
@@ -40,6 +23,10 @@ function NavigationLayout() {
         />
       </View>
     );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
   }
 
   return (
@@ -76,7 +63,7 @@ function NavigationLayout() {
             <Ionicons
               name={focused ? 'home' : 'home-outline'}
               size={23}
-              color={color}
+              color={color as string}
             />
           ),
         }}
@@ -89,7 +76,7 @@ function NavigationLayout() {
             <Ionicons
               name={focused ? 'search' : 'search-outline'}
               size={23}
-              color={color}
+              color={color as string}
             />
           ),
         }}
@@ -102,7 +89,7 @@ function NavigationLayout() {
             <Ionicons
               name={focused ? 'add-circle' : 'add-circle-outline'}
               size={26}
-              color={color}
+              color={color as string}
             />
           ),
         }}
@@ -115,7 +102,7 @@ function NavigationLayout() {
             <Ionicons
               name={focused ? 'person' : 'person-outline'}
               size={23}
-              color={color}
+              color={color as string}
             />
           ),
         }}
@@ -125,6 +112,7 @@ function NavigationLayout() {
         options={{
           href: null,
           title: 'Detail',
+          tabBarStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen

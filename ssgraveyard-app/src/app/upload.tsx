@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ScrollView,
   TouchableOpacity,
   FlatList,
+  Alert,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -18,6 +19,7 @@ import { analyzeScreenshot, AIResult } from '../ai';
 import { saveEntry } from '../storage';
 import { ApiKeyModal } from '../components/ApiKeyModal';
 import { useAuth } from '../context/AuthContext';
+import { getActiveApiKey } from '../constants';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -41,10 +43,19 @@ export default function Upload() {
   const router = useRouter();
   const { user } = useAuth();
   const [items, setItems] = useState<BulkItem[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [allDone, setAllDone] = useState(false);
   const [apiKeyModalVisible, setApiKeyModalVisible] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(false);
   const processingRef = useRef(false);
+
+  const checkApiKey = useCallback(async () => {
+    const key = await getActiveApiKey();
+    setHasApiKey(Boolean(key && key.trim().length > 15));
+  }, []);
+
+  useEffect(() => {
+    checkApiKey();
+  }, [checkApiKey, apiKeyModalVisible]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -59,13 +70,7 @@ export default function Upload() {
 
   // ── Pick images ──────────────────────────────────────────────────────────────
 
-  const pickImages = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      alert('Gallery access is needed to select screenshots.');
-      return;
-    }
-
+  const launchGalleryPicker = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
@@ -84,6 +89,38 @@ export default function Upload() {
       setAllDone(false);
       startBatchProcessing(newItems);
     }
+  };
+
+  const pickImages = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission Required', 'Gallery access is needed to select screenshots.');
+      return;
+    }
+
+    const key = await getActiveApiKey();
+    const keyExists = Boolean(key && key.trim().length > 15);
+
+    if (!keyExists) {
+      Alert.alert(
+        'Gemini Vision AI Recommended',
+        'To accurately identify and sort food, outfits/people, study notes, and shopping items, connect your free Gemini API key.\n\nWithout it, photos use offline fallback and may default to Ideas & Notes.',
+        [
+          {
+            text: 'Connect API Key',
+            onPress: () => setApiKeyModalVisible(true),
+          },
+          {
+            text: 'Continue Offline',
+            style: 'cancel',
+            onPress: () => launchGalleryPicker(),
+          },
+        ]
+      );
+      return;
+    }
+
+    await launchGalleryPicker();
   };
 
   // ── Batch processing engine ───────────────────────────────────────────────────
@@ -118,7 +155,6 @@ export default function Upload() {
   const startBatchProcessing = async (initialItems: BulkItem[]) => {
     if (processingRef.current) return;
     processingRef.current = true;
-    setIsProcessing(true);
 
     const queue = [...initialItems];
     const runNext = async (): Promise<void> => {
@@ -135,7 +171,6 @@ export default function Upload() {
     await Promise.all(slots);
 
     processingRef.current = false;
-    setIsProcessing(false);
     setAllDone(true);
   };
 
@@ -235,17 +270,55 @@ export default function Upload() {
           <View style={styles.headerTop}>
             <Text style={styles.headerTitle}>Bulk Import</Text>
             <TouchableOpacity
-              style={styles.keyBtn}
+              style={[styles.keyBtn, hasApiKey ? styles.keyBtnActive : styles.keyBtnSetup]}
               onPress={() => setApiKeyModalVisible(true)}
             >
-              <Ionicons name="key-outline" size={16} color={colors.primaryDark} />
-              <Text style={styles.keyBtnText}>API Key</Text>
+              <Ionicons
+                name={hasApiKey ? 'sparkles' : 'key-outline'}
+                size={14}
+                color={hasApiKey ? '#15803D' : '#854D0E'}
+              />
+              <Text style={[styles.keyBtnText, hasApiKey ? styles.keyBtnTextActive : styles.keyBtnTextSetup]}>
+                {hasApiKey ? 'Vision AI' : 'Setup AI'}
+              </Text>
             </TouchableOpacity>
           </View>
           <Text style={styles.headerSub}>
             Select multiple screenshots at once. AI categorizes all of them automatically.
           </Text>
         </View>
+
+        {/* AI Vision Status Callout */}
+        {hasApiKey ? (
+          <View style={styles.aiBannerActive}>
+            <View style={styles.aiBannerIconCircle}>
+              <Ionicons name="sparkles" size={16} color={colors.primary} />
+            </View>
+            <View style={styles.aiBannerTextWrap}>
+              <Text style={styles.aiBannerTitleActive}>Gemini 2.0 Flash Vision Active</Text>
+              <Text style={styles.aiBannerSubActive}>
+                Multimodal AI recognizes food, outfits, notes, places, and wishlists.
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.aiBannerWarning}
+            activeOpacity={0.85}
+            onPress={() => setApiKeyModalVisible(true)}
+          >
+            <View style={styles.aiBannerWarnIconCircle}>
+              <Ionicons name="key" size={16} color="#B45309" />
+            </View>
+            <View style={styles.aiBannerTextWrap}>
+              <Text style={styles.aiBannerTitleWarning}>Gemini API Key Needed for Accurate Vision</Text>
+              <Text style={styles.aiBannerSubWarning}>
+                Tap to connect Gemini. Without it, real vision AI is inactive.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#B45309" />
+          </TouchableOpacity>
+        )}
 
         <Pressable style={styles.dropZone} onPress={pickImages}>
           <View style={styles.uploadIconCircle}>
@@ -285,7 +358,7 @@ export default function Upload() {
         <ApiKeyModal
           visible={apiKeyModalVisible}
           onClose={() => setApiKeyModalVisible(false)}
-          onKeySaved={() => {}}
+          onKeySaved={checkApiKey}
         />
       </ScrollView>
     );
@@ -302,11 +375,17 @@ export default function Upload() {
             {allDone ? 'Import Complete' : 'Processing…'}
           </Text>
           <TouchableOpacity
-            style={styles.keyBtn}
+            style={[styles.keyBtn, hasApiKey ? styles.keyBtnActive : styles.keyBtnSetup]}
             onPress={() => setApiKeyModalVisible(true)}
           >
-            <Ionicons name="key-outline" size={16} color={colors.primaryDark} />
-            <Text style={styles.keyBtnText}>API Key</Text>
+            <Ionicons
+              name={hasApiKey ? 'sparkles' : 'key-outline'}
+              size={14}
+              color={hasApiKey ? '#15803D' : '#854D0E'}
+            />
+            <Text style={[styles.keyBtnText, hasApiKey ? styles.keyBtnTextActive : styles.keyBtnTextSetup]}>
+              {hasApiKey ? 'Vision AI' : 'Setup AI'}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -392,7 +471,7 @@ export default function Upload() {
                 <Text style={styles.secondaryActionBtnText}>Import More</Text>
               </TouchableOpacity>
             </View>
-          ) : null
+          ) : undefined
         }
       />
 
@@ -437,15 +516,89 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: colors.limeLight,
     paddingVertical: 5,
     paddingHorizontal: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.limeBorder,
   },
-  keyBtnText: { fontSize: 12, fontWeight: '700', color: colors.primaryDark },
+  keyBtnActive: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#86EFAC',
+  },
+  keyBtnSetup: {
+    backgroundColor: '#FEF9C3',
+    borderColor: '#FDE047',
+  },
+  keyBtnText: { fontSize: 12, fontWeight: '700' },
+  keyBtnTextActive: { color: '#15803D' },
+  keyBtnTextSetup: { color: '#854D0E' },
   headerSub: { fontSize: 13, color: colors.textSecondary, marginTop: 4, lineHeight: 18 },
+
+  aiBannerActive: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  aiBannerIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiBannerTextWrap: {
+    flex: 1,
+  },
+  aiBannerTitleActive: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  aiBannerSubActive: {
+    fontSize: 11,
+    color: '#166534',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  aiBannerWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  aiBannerWarnIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiBannerTitleWarning: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  aiBannerSubWarning: {
+    fontSize: 11,
+    color: '#B45309',
+    marginTop: 2,
+    lineHeight: 15,
+  },
 
   dropZone: {
     borderWidth: 2,

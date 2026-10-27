@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,27 +8,25 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, categories } from '../theme';
-import { searchEntries, Entry } from '../storage';
+import { searchEntries, deleteEntry, Entry } from '../storage';
+import { DetailModal } from '../components/DetailModal';
 import { useAuth } from '../context/AuthContext';
 
 export default function Search() {
-  const router = useRouter();
   const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedDetailEntry, setSelectedDetailEntry] = useState<Entry | null>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
 
-  useEffect(() => {
-    runSearch('');
-  }, [user?.id]);
-
-  const runSearch = async (q: string, categoryFilter: string | null = selectedCategory) => {
+  const runSearch = useCallback(async (q: string, categoryFilter: string | null = selectedCategory) => {
     setLoading(true);
     let r = await searchEntries(q, user?.id);
     if (categoryFilter) {
@@ -37,7 +35,11 @@ export default function Search() {
     setResults(r);
     setSearched(true);
     setLoading(false);
-  };
+  }, [user?.id, selectedCategory]);
+
+  useEffect(() => {
+    runSearch('');
+  }, [runSearch]);
 
   const onChangeText = (text: string) => {
     setQuery(text);
@@ -48,6 +50,48 @@ export default function Search() {
     const next = selectedCategory === catId ? null : catId;
     setSelectedCategory(next);
     runSearch(query, next);
+  };
+
+  const handleOpenDetail = (item: Entry) => {
+    setSelectedDetailEntry(item);
+    setDetailModalVisible(true);
+  };
+
+  const handleDeleteEntry = (item: Entry) => {
+    Alert.alert(
+      'Delete Screenshot',
+      `Are you sure you want to remove "${item.intent || 'this screenshot'}" from your vault?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteEntry(item.id);
+            setResults((prev) => prev.filter((e) => e.id !== item.id));
+          },
+        },
+      ]
+    );
+  };
+
+  const handleLongPressCard = (item: Entry) => {
+    Alert.alert(
+      'Screenshot Options',
+      item.intent || item.categoryLabel,
+      [
+        {
+          text: 'View Details',
+          onPress: () => handleOpenDetail(item),
+        },
+        {
+          text: 'Delete Screenshot',
+          style: 'destructive',
+          onPress: () => handleDeleteEntry(item),
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   const getCategoryIcon = (catId: string) => {
@@ -141,8 +185,10 @@ export default function Search() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.card}
-              activeOpacity={0.8}
-              onPress={() => router.push({ pathname: '/detail', params: { id: item.id } })}
+              activeOpacity={0.78}
+              onPress={() => handleOpenDetail(item)}
+              onLongPress={() => handleLongPressCard(item)}
+              delayLongPress={300}
             >
               <Image source={{ uri: item.imageUri }} style={styles.thumb} resizeMode="cover" />
               <View style={styles.cardBody}>
@@ -155,6 +201,16 @@ export default function Search() {
                     />
                     <Text style={styles.catText}>{item.categoryLabel}</Text>
                   </View>
+                  <TouchableOpacity
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleDeleteEntry(item);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="trash-outline" size={15} color={colors.textMuted} />
+                  </TouchableOpacity>
                 </View>
                 <Text style={styles.intent} numberOfLines={2}>
                   {item.intent}
@@ -170,6 +226,19 @@ export default function Search() {
           )}
         />
       )}
+      <DetailModal
+        visible={detailModalVisible}
+        entry={selectedDetailEntry}
+        onClose={() => setDetailModalVisible(false)}
+        onDeleted={(id) => {
+          setResults((prev) => prev.filter((e) => e.id !== id));
+          setDetailModalVisible(false);
+        }}
+        onUpdated={(updated) => {
+          setResults((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+          setSelectedDetailEntry(updated);
+        }}
+      />
     </View>
   );
 }
@@ -321,6 +390,8 @@ const styles = StyleSheet.create({
   },
   catRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 4,
   },
   catBadge: {

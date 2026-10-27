@@ -1,47 +1,61 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Pressable,
   Image,
   RefreshControl,
   AppState,
+  Alert,
 } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, categories, Category } from '../theme';
-import { getAllEntries, seedSampleData, Entry } from '../storage';
+import { colors, categories } from '../theme';
+import { getAllEntries, deleteEntry, seedSampleData, Entry } from '../storage';
 import { ApiKeyModal } from '../components/ApiKeyModal';
+import { DetailModal } from '../components/DetailModal';
 import { useAuth } from '../context/AuthContext';
+import { getActiveApiKey } from '../constants';
 
 export default function Home() {
   const router = useRouter();
-  const pathname = usePathname();
   const { user } = useAuth();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [apiKeyModalVisible, setApiKeyModalVisible] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(false);
+  const [selectedDetailEntry, setSelectedDetailEntry] = useState<Entry | null>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
 
-  const load = async () => {
+  const checkApiKey = useCallback(async () => {
+    const key = await getActiveApiKey();
+    setHasApiKey(Boolean(key && key.trim().length > 15));
+  }, []);
+
+  useEffect(() => {
+    checkApiKey();
+  }, [checkApiKey, apiKeyModalVisible]);
+
+  const load = useCallback(async () => {
     const all = await getAllEntries(user?.id);
     setEntries(all);
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     load();
-  }, [pathname, user?.id]);
+  }, [load]);
 
   useEffect(() => {
-    load();
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') load();
+      if (state === 'active') {
+        load();
+      }
     });
     return () => sub.remove();
-  }, [user?.id]);
+  }, [load]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -56,13 +70,55 @@ export default function Home() {
     setRefreshing(false);
   };
 
+  const handleOpenDetail = (item: Entry) => {
+    setSelectedDetailEntry(item);
+    setDetailModalVisible(true);
+  };
+
+  const handleDeleteEntry = (item: Entry) => {
+    Alert.alert(
+      'Delete Screenshot',
+      `Are you sure you want to remove "${item.intent || 'this screenshot'}" from your vault?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteEntry(item.id);
+            setEntries((prev) => prev.filter((e) => e.id !== item.id));
+          },
+        },
+      ]
+    );
+  };
+
+  const handleLongPressCard = (item: Entry) => {
+    Alert.alert(
+      'Screenshot Options',
+      item.intent || item.categoryLabel,
+      [
+        {
+          text: 'View Details',
+          onPress: () => handleOpenDetail(item),
+        },
+        {
+          text: 'Delete Screenshot',
+          style: 'destructive',
+          onPress: () => handleDeleteEntry(item),
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
   const filtered = activeCategory
     ? entries.filter((e) => e.category === activeCategory)
     : entries;
 
   const countFor = (catId: string) => entries.filter((e) => e.category === catId).length;
 
-  const allCategories: Array<{ id: string | null; label: string; icon: any }> = [
+  const allCategories: { id: string | null; label: string; icon: any }[] = [
     { id: null, label: 'All', icon: 'apps-outline' },
     ...categories,
   ];
@@ -85,45 +141,61 @@ export default function Home() {
 
   return (
     <View style={styles.container}>
-      {/* Top Header */}
+      {/* Top Header - Creative Human Identity & Cohesive Layout */}
       <View style={styles.header}>
-        <View style={styles.brandRow}>
-          <View style={styles.brandIconWrap}>
-            <Ionicons name="sparkles" size={18} color={colors.primary} />
+        <TouchableOpacity
+          style={styles.brandRow}
+          activeOpacity={0.85}
+          onPress={() => onRefresh()}
+        >
+          {/* Creative Emblem: Stylized Obsidian & Neon Lime Ghost Tombstone */}
+          <View style={styles.brandEmblem}>
+            <Text style={styles.brandGhostEmoji}>👻</Text>
+            <View style={styles.brandNeonDot} />
           </View>
-          <View>
-            <View style={styles.titleWrap}>
-              <Text style={styles.headerTitle}>SSgraveYard</Text>
-              <View style={styles.badgeLive}>
-                <Text style={styles.badgeLiveText}>AI Vault</Text>
+
+          <View style={styles.brandTextContainer}>
+            <View style={styles.titleRow}>
+              <Text style={styles.brandTitleMain}>
+                <Text style={styles.brandTitleGreen}>SS</Text>
+                <Text style={styles.brandTitleDark}>GRAVEYARD</Text>
+              </Text>
+              <View style={styles.graveyardBadge}>
+                <Text style={styles.graveyardBadgeText}>R.I.P.</Text>
               </View>
             </View>
             <Text style={styles.headerSub}>
-              {userFirstName ? `Hi, ${userFirstName} • ` : ''}{entries.length} saved
+              {userFirstName ? `${userFirstName}'s Vault` : 'Vault'} • {entries.length} resurrected
             </Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {/* Clean, Non-Overflowing Header Controls */}
+        <View style={styles.headerActions}>
           <TouchableOpacity
-            style={styles.keyHeaderBtn}
+            style={[styles.aiStatusChip, hasApiKey ? styles.aiStatusActive : styles.aiStatusSetup]}
             onPress={() => setApiKeyModalVisible(true)}
+            activeOpacity={0.8}
           >
-            <Ionicons name="key-outline" size={16} color={colors.primaryDark} />
+            <Ionicons
+              name={hasApiKey ? 'sparkles' : 'key-outline'}
+              size={13}
+              color={hasApiKey ? '#15803D' : '#854D0E'}
+            />
+            <Text style={[styles.aiStatusText, hasApiKey ? styles.aiStatusTextActive : styles.aiStatusTextSetup]}>
+              {hasApiKey ? 'Vision AI' : 'Setup AI'}
+            </Text>
           </TouchableOpacity>
+
           <TouchableOpacity
-            style={styles.profileHeaderBtn}
+            style={styles.avatarBtn}
             onPress={() => router.push('/profile' as any)}
+            activeOpacity={0.8}
           >
-            <Ionicons name="person-outline" size={16} color={colors.primaryDark} />
+            <Text style={styles.avatarText}>
+              {userFirstName ? userFirstName.charAt(0).toUpperCase() : 'P'}
+            </Text>
           </TouchableOpacity>
-          <Pressable
-            style={styles.addBtn}
-            onPress={() => router.push('/upload')}
-          >
-            <Ionicons name="add" size={18} color="#FFFFFF" />
-            <Text style={styles.addBtnText}>Add</Text>
-          </Pressable>
         </View>
       </View>
 
@@ -133,7 +205,7 @@ export default function Home() {
           <View style={styles.heroStatsRow}>
             <View style={styles.heroStatItem}>
               <Text style={styles.heroStatValue}>{entries.length}</Text>
-              <Text style={styles.heroStatLabel}>Total Saved</Text>
+              <Text style={styles.heroStatLabel}>Resurrected</Text>
             </View>
             <View style={styles.heroStatDivider} />
             <View style={styles.heroStatItem}>
@@ -144,8 +216,11 @@ export default function Home() {
             </View>
             <View style={styles.heroStatDivider} />
             <View style={styles.heroStatItem}>
-              <Text style={styles.heroStatValue}>Auto</Text>
-              <Text style={styles.heroStatLabel}>AI Sorted</Text>
+              <View style={styles.heroAiPill}>
+                <Ionicons name="sparkles" size={12} color={colors.primary} />
+                <Text style={styles.heroAiPillText}>Auto-Sorted</Text>
+              </View>
+              <Text style={styles.heroStatLabel}>Gemini Vision</Text>
             </View>
           </View>
         </View>
@@ -245,8 +320,10 @@ export default function Home() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.card}
-              activeOpacity={0.8}
-              onPress={() => router.push({ pathname: '/detail', params: { id: item.id } })}
+              activeOpacity={0.78}
+              onPress={() => handleOpenDetail(item)}
+              onLongPress={() => handleLongPressCard(item)}
+              delayLongPress={300}
             >
               <Image source={{ uri: item.imageUri }} style={styles.thumbnail} resizeMode="cover" />
 
@@ -260,7 +337,20 @@ export default function Home() {
                     />
                     <Text style={styles.categoryPillText}>{item.categoryLabel}</Text>
                   </View>
-                  <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
+                  <View style={styles.cardTopRight}>
+                    <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
+                    <TouchableOpacity
+                      style={styles.cardTrashBtn}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleDeleteEntry(item);
+                      }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="trash-outline" size={14} color={colors.textMuted} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 <Text style={styles.intentTitle} numberOfLines={2}>
@@ -291,6 +381,19 @@ export default function Home() {
           )}
         />
       )}
+      <DetailModal
+        visible={detailModalVisible}
+        entry={selectedDetailEntry}
+        onClose={() => setDetailModalVisible(false)}
+        onDeleted={(id) => {
+          setEntries((prev) => prev.filter((e) => e.id !== id));
+          setDetailModalVisible(false);
+        }}
+        onUpdated={(updated) => {
+          setEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+          setSelectedDetailEntry(updated);
+        }}
+      />
       <ApiKeyModal
         visible={apiKeyModalVisible}
         onClose={() => setApiKeyModalVisible(false)}
@@ -305,24 +408,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  keyHeaderBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: colors.limeLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.limeBorder,
-  },
-
   /* Header */
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 54,
+    paddingHorizontal: 16,
+    paddingTop: 52,
     paddingBottom: 14,
     backgroundColor: colors.background,
     borderBottomWidth: 1,
@@ -332,75 +424,136 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flexShrink: 1,
   },
-  brandIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: colors.limeLight,
+  brandEmblem: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.limeBorder,
+    borderWidth: 1.5,
+    borderColor: '#84CC16',
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+    position: 'relative',
   },
-  titleWrap: {
+  brandGhostEmoji: {
+    fontSize: 22,
+  },
+  brandNeonDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#22C55E',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+  },
+  brandTextContainer: {
+    flexShrink: 1,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  brandTitleMain: {
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  brandTitleGreen: {
+    color: '#16A34A',
+  },
+  brandTitleDark: {
+    color: '#0F172A',
+  },
+  graveyardBadge: {
+    backgroundColor: '#0F172A',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  graveyardBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#84CC16',
+    letterSpacing: 0.5,
+  },
+  headerSub: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    letterSpacing: -0.3,
-  },
-  badgeLive: {
-    backgroundColor: colors.limeLight,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.limeBorder,
-  },
-  badgeLiveText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.limeDark,
-    textTransform: 'uppercase',
-  },
-  headerSub: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  profileHeaderBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: colors.limeLight,
-    borderWidth: 1,
-    borderColor: colors.limeBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addBtn: {
+  aiStatusChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    gap: 4,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
   },
-  addBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+  aiStatusActive: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#86EFAC',
+  },
+  aiStatusSetup: {
+    backgroundColor: '#FEF9C3',
+    borderColor: '#FDE047',
+  },
+  aiStatusText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  aiStatusTextActive: {
+    color: '#15803D',
+  },
+  aiStatusTextSetup: {
+    color: '#854D0E',
+  },
+  avatarBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1.5,
+    borderColor: '#16A34A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  avatarText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  heroAiPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  heroAiPillText: {
     fontSize: 13,
+    fontWeight: '700',
+    color: colors.primaryDark,
   },
 
   /* Hero Overview */
@@ -611,6 +764,16 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: colors.limeDark,
+  },
+  cardTopRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cardTrashBtn: {
+    padding: 3,
+    borderRadius: 6,
+    backgroundColor: colors.surface,
   },
   dateText: {
     fontSize: 11,

@@ -100,14 +100,27 @@ export default function LoginScreen() {
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Top Brand Header */}
+          {/* Top Brand Header - Creative Human Identity */}
           <View style={styles.brandContainer}>
-            <View style={styles.logoBadge}>
-              <Ionicons name="sparkles" size={30} color={colors.primary} />
+            {/* Creative Hero Emblem: Obsidian Tombstone with Neon Lime Rim & Ghost */}
+            <View style={styles.heroEmblem}>
+              <Text style={styles.heroGhostEmoji}>👻</Text>
+              <View style={styles.heroNeonDot} />
             </View>
-            <Text style={styles.brandTitle}>SSgraveYard</Text>
+
+            {/* Title with SS in Neon Emerald, GRAVEYARD in Obsidian Ink, & R.I.P. badge */}
+            <View style={styles.heroTitleRow}>
+              <Text style={styles.heroBrandTitleMain}>
+                <Text style={styles.brandTitleGreen}>SS</Text>
+                <Text style={styles.brandTitleDark}>GRAVEYARD</Text>
+              </Text>
+              <View style={styles.heroGraveyardBadge}>
+                <Text style={styles.heroGraveyardBadgeText}>R.I.P.</Text>
+              </View>
+            </View>
+
             <Text style={styles.brandSubtitle}>
-              Smart AI Vault for Your Screenshots
+              Where dead screenshots get resurrected • Smart AI Vault
             </Text>
           </View>
 
@@ -314,35 +327,77 @@ const styles = StyleSheet.create({
   },
   brandContainer: {
     alignItems: 'center',
-    marginBottom: 26,
-    marginTop: 8,
+    marginBottom: 24,
+    marginTop: 6,
   },
-  logoBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    backgroundColor: colors.limeLight,
-    borderWidth: 1.5,
-    borderColor: colors.limeBorder,
+  heroEmblem: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    backgroundColor: '#0F172A',
+    borderWidth: 2,
+    borderColor: '#84CC16',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
-    shadowColor: colors.primary,
+    shadowColor: '#16A34A',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
+    position: 'relative',
   },
-  brandTitle: {
+  heroGhostEmoji: {
+    fontSize: 34,
+  },
+  heroNeonDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#22C55E',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  heroTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  heroBrandTitleMain: {
     fontSize: 26,
-    fontWeight: '800',
-    color: colors.text,
-    letterSpacing: -0.5,
+    fontWeight: '900',
+    letterSpacing: -0.6,
+  },
+  brandTitleGreen: {
+    color: '#16A34A',
+  },
+  brandTitleDark: {
+    color: '#0F172A',
+  },
+  heroGraveyardBadge: {
+    backgroundColor: '#0F172A',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#84CC16',
+  },
+  heroGraveyardBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#84CC16',
+    letterSpacing: 0.8,
   },
   brandSubtitle: {
     fontSize: 13,
+    fontWeight: '500',
     color: colors.textSecondary,
-    marginTop: 4,
+    marginTop: 6,
+    textAlign: 'center',
   },
   modeSwitcher: {
     flexDirection: 'row',

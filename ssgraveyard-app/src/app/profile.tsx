@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -28,18 +28,18 @@ export default function ProfileScreen() {
   const [newName, setNewName] = useState(user?.name || '');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  const loadEntries = useCallback(async () => {
+    if (!user) return;
+    const userEntries = await getAllEntries(user.id);
+    setEntries(userEntries);
+  }, [user]);
+
   useEffect(() => {
     if (user) {
       setNewName(user.name);
       loadEntries();
     }
-  }, [user]);
-
-  const loadEntries = async () => {
-    if (!user) return;
-    const userEntries = await getAllEntries(user.id);
-    setEntries(userEntries);
-  };
+  }, [user, loadEntries]);
 
   const handleLogout = () => {
     Alert.alert(
